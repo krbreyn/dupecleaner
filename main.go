@@ -64,15 +64,18 @@ func main() {
 	checkErrAndExit(err, m_m.shouldExit, m_m.exitMsg)
 
 	toDel := m_m.toDelete
+	var i int
 	for _, path := range toDel {
 		fmt.Printf("deleting file %s\n", path)
 		err := os.Remove(path)
 		if err != nil {
 			fmt.Println(err)
+			continue
 		}
+		i++
 	}
 
-	fmt.Printf("All done! Deleted %d files\n", len(toDel))
+	fmt.Printf("All done! Deleted %d files\n", i)
 }
 
 func hashRoutine(hashSub chan string, countSub chan countMsg, dupeSub chan DupeEntry) {
