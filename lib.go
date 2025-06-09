@@ -93,9 +93,6 @@ func scanRoutine(dir string, countSub chan countMsg, hashSub chan string) {
 				hashSub <- fullPath
 				countSub <- ImageFoundCount
 			}
-			if *recurFlag {
-				continue
-			}
 			if entry.IsDir() {
 				dirs = append(dirs, fullPath)
 				countSub <- FolderScannedCount
@@ -118,7 +115,7 @@ func dupeRoutineMaster(countSub chan countMsg, dupeSub chan DupeEntry, out chan 
 	}
 	font_width, font_height := getFontCellSize()
 	t_w = width * font_width
-	t_h = (height - 7) * font_height
+	t_h = (height - 9) * font_height
 
 	dupes := make(map[string]DupeSet)
 	var mu sync.Mutex

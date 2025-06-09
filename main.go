@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 
@@ -12,8 +11,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 )
-
-var recurFlag = flag.Bool("no-recurse", false, "do not enter sub-directors")
 
 func main() {
 	var dir string
@@ -26,8 +23,6 @@ func main() {
 	} else {
 		dir = os.Args[1]
 	}
-
-	flag.Parse()
 	countSub := make(chan countMsg, 1000)
 	hashSub := make(chan string, 1000)
 	dupeSub := make(chan DupeEntry, 100)

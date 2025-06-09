@@ -46,7 +46,8 @@ func (m d_model) Init() tea.Cmd {
 
 func (m d_model) View() string {
 	var ret string
-	ret += fmt.Sprintf("scanning %s\n%d folders scanned\n%d files found\n%d images found\n%d images hashed\n%d duplicates found\n%d images converted\n", m.dir, m.counts.FoldersScanned, m.counts.FilesFound, m.counts.ImagesFound, m.counts.FilesHashed, m.counts.DuplicatesFound, m.counts.ImagesConverted)
+	ret += fmt.Sprintf("scanning %s\n%d folders scanned\n%d files found\n%d images found\n%d images hashed\n%d duplicates found\n%d images converted\n",
+		m.dir, m.counts.FoldersScanned, m.counts.FilesFound, m.counts.ImagesFound, m.counts.FilesHashed, m.counts.DuplicatesFound, m.counts.ImagesConverted)
 	if m.done {
 		ret += "All done! Press ENTER to continue."
 	}

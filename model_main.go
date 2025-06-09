@@ -32,7 +32,7 @@ func (m m_model) Init() tea.Cmd {
 
 func (m m_model) View() string {
 	if m.showFinalPrompt {
-		return "press ENTER to perform actions\nESC to go back"
+		return "press ENTER to perform actions\nESC or LEFT to go back"
 	}
 	curr := m.Curr()
 	var b strings.Builder
