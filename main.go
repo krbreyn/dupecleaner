@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"flag"
 	"fmt"
@@ -10,6 +11,8 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 
 	_ "image/jpeg"
@@ -17,6 +20,7 @@ import (
 
 	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
+	"golang.org/x/term"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mattn/go-sixel"
@@ -69,14 +73,15 @@ func main() {
 				fullPath := path.Join(popped, entryName)
 				switch path.Ext(entryName) {
 				case ".jpg", ".jpeg", ".png", ".webp":
-					countSub <- ImageFoundCount
 					hashSub <- fullPath
+					countSub <- ImageFoundCount
 				}
-				if !*recurFlag {
-					if entry.IsDir() {
-						dirs = append(dirs, fullPath)
-						countSub <- FolderScannedCount
-					}
+				if *recurFlag {
+					continue
+				}
+				if entry.IsDir() {
+					dirs = append(dirs, fullPath)
+					countSub <- FolderScannedCount
 				}
 			}
 			if len(dirs) == 0 {
@@ -104,8 +109,8 @@ func main() {
 			countSub <- FileHashedCount
 			dupeOf, ok := hashMap[hashSum]
 			if ok {
-				countSub <- DuplicatesFoundCount
 				dupeSub <- DupeEntry{Path: name, DupeOf: dupeOf}
+				countSub <- DuplicatesFoundCount
 			} else {
 				hashMap[hashSum] = name
 			}
@@ -161,33 +166,26 @@ type DupeSet struct {
 }
 
 func convImages(countSub chan countMsg, dupeSub chan DupeEntry, out chan []DupeSet) {
-	dupes := make(map[string]DupeSet)
-	var mu sync.RWMutex
-	var wg sync.WaitGroup
-	for range runtime.NumCPU() - 2 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for dupe := range dupeSub {
-				mu.RLock()
-				entry, ok := dupes[dupe.DupeOf]
-				mu.RUnlock()
-				if !ok {
-					entry.Paths = append(entry.Paths, dupe.DupeOf, dupe.Path)
+	var t_w, t_h int
 
-					sixelImg := toSixelImg(dupe.DupeOf, 640, 480)
-					countSub <- ImageConvertedCount
-
-					entry.SixelImg = sixelImg
-				} else {
-					entry.Paths = append(entry.Paths, dupe.Path)
-				}
-				mu.Lock()
-				dupes[dupe.DupeOf] = entry
-				mu.Unlock()
-			}
-		}()
+	width, height, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		width = 80
+		height = 24
 	}
+	font_width, font_height := getFontCellSize()
+	t_w = width * font_width
+	t_h = (height - 7) * font_height
+
+	dupes := make(map[string]DupeSet)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	for range max(runtime.NumCPU()-3, 1) {
+		wg.Add(1)
+		go dupeRoutine(&wg, dupeSub, &mu, dupes, countSub, t_w, t_h)
+	}
+
 	wg.Wait()
 	countSub <- AllDoneMsg
 	close(countSub)
@@ -198,6 +196,39 @@ func convImages(countSub chan countMsg, dupeSub chan DupeEntry, out chan []DupeS
 	out <- ret
 	close(out)
 
+}
+
+func dupeRoutine(wg *sync.WaitGroup, dupeSub chan DupeEntry, mu *sync.Mutex, dupes map[string]DupeSet, countSub chan countMsg, width, height int) {
+	defer wg.Done()
+	for dupe := range dupeSub {
+		mu.Lock()
+		entry, ok := dupes[dupe.DupeOf]
+		if !ok {
+			entry.Paths = []string{dupe.DupeOf}
+			dupes[dupe.DupeOf] = entry
+		} else {
+			entry.Paths = append(entry.Paths, dupe.Path)
+		}
+		mu.Unlock()
+
+		if !ok {
+			sixelImg := toSixelImg(dupe.DupeOf, width, height)
+			countSub <- ImageConvertedCount
+
+			mu.Lock()
+			entry = dupes[dupe.DupeOf]
+			entry.SixelImg = sixelImg
+			entry.Paths = append(entry.Paths, dupe.Path)
+			dupes[dupe.DupeOf] = entry
+			mu.Unlock()
+			continue
+		}
+		mu.Lock()
+		entry = dupes[dupe.DupeOf]
+		entry.Paths = append(entry.Paths, dupe.Path)
+		dupes[dupe.DupeOf] = entry
+		mu.Unlock()
+	}
 }
 
 func toSixelImg(path string, maxWidth, maxHeight int) []byte {
@@ -239,6 +270,30 @@ func resizeImageNearest(src image.Image, maxWidth, maxHeight int) image.Image {
 	draw.NearestNeighbor.Scale(dst, dst.Rect, src, src.Bounds(), draw.Over, nil)
 
 	return dst
+}
+
+func getFontCellSize() (width, height int) {
+	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
+	if err != nil {
+		return 16, 8
+	}
+	defer term.Restore(int(os.Stdin.Fd()), oldState)
+
+	fmt.Print("\033[16t")
+
+	reader := bufio.NewReader(os.Stdin)
+	response, err := reader.ReadString('t')
+	if err != nil {
+		return 16, 8
+	}
+
+	parts := strings.Split(response, ";")
+	if len(parts) >= 3 {
+		height, _ = strconv.Atoi(parts[1])
+		width, _ = strconv.Atoi(strings.TrimSuffix(parts[2], "t"))
+	}
+
+	return width, height
 }
 
 func checkErrAndExit(err error, shouldExit bool, exitMsg string) {

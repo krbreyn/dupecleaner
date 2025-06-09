@@ -14,12 +14,12 @@ func newMainModel(dupes []DupeSet) tea.Model {
 }
 
 type m_model struct {
-	exitMsg    string
-	shouldExit bool
-	Pos        int
-	dupes      []DupeSet
-	toDelete   []string
-	showReady  bool
+	showFinalPrompt bool
+	shouldExit      bool
+	Pos             int
+	exitMsg         string
+	dupes           []DupeSet
+	toDelete        []string
 }
 
 func (m m_model) IsSelected(path string) bool {
@@ -31,7 +31,7 @@ func (m m_model) Init() tea.Cmd {
 }
 
 func (m m_model) View() string {
-	if m.showReady {
+	if m.showFinalPrompt {
 		return "press ENTER to perform actions\nESC to go back"
 	}
 	curr := m.Curr()
@@ -68,6 +68,16 @@ func (m m_model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		key := msg.String()
 		curr := m.Curr()
 
+		if m.showFinalPrompt && key != "esc" && key != "enter" {
+			if key != "left" {
+				break
+			}
+			if m.showFinalPrompt {
+				m.showFinalPrompt = false
+				break
+			}
+		}
+
 		switch key {
 		case "left":
 			if m.Pos != 0 {
@@ -76,7 +86,7 @@ func (m m_model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "right":
 			m.Pos++
 			if m.Pos == len(m.dupes) {
-				m.showReady = true
+				m.showFinalPrompt = true
 				m.Pos--
 				return m, tea.ClearScreen
 			}
@@ -92,7 +102,7 @@ func (m m_model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "enter":
-			if m.showReady {
+			if m.showFinalPrompt {
 				return m, tea.Quit
 			}
 			target := curr.Paths[curr.Pos]
@@ -107,12 +117,13 @@ func (m m_model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "esc":
-			if m.showReady {
-				m.showReady = false
+			if m.showFinalPrompt {
+				m.showFinalPrompt = false
 			}
 
 		case "ctrl+c", "ctrl+d", "q":
-			return m, tea.Quit
+			cmds = append(cmds, tea.ClearScreen, tea.Quit)
+			return m, tea.Batch(cmds...)
 		}
 
 	case tea.WindowSizeMsg:
