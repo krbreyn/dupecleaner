@@ -26,19 +26,6 @@ import (
 	"github.com/mattn/go-sixel"
 )
 
-// - scan through all folders (and subfolders if specified) grabbing all supported image files
-// - hash those image files as they came in and add them to a hashmap, collecting any collisions that it finds
-// - convert those images to properly scaled sixel images
-// when that's all done, display the main ui and program
-// flip through all image duplicates with options to either do nothing, delete 1 of the images, or delete both (with an are you sure?)
-// those marks get added to a list of actions that is only run when you go through all of the images or say that you're done and do them now (that should give you an option to either continue or quit)
-// if you resize the terminal at all, it should wait until the size has stopped changing and then resize all the images accordingly
-//
-
-// stage 1:
-// present the loading-setting up screen and count up the amount of
-// files and images scanned
-
 var recurFlag = flag.Bool("no-recurse", false, "do not enter sub-directors")
 
 func main() {
