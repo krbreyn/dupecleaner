@@ -4,8 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"hash/crc32"
 	"image"
+	"io"
 	"os"
+	"path"
 	"runtime"
 	"strconv"
 	"strings"
@@ -43,6 +46,66 @@ type DupeSet struct {
 	Paths    []string
 	SixelImg []byte
 	Pos      int
+}
+
+func hashRoutine(hashSub chan string, countSub chan countMsg, dupeSub chan DupeEntry) {
+	hashMap := make(map[uint32]string)
+	for name := range hashSub {
+		file, err := os.Open(name)
+		if err != nil {
+			panic(err)
+		}
+		table := crc32.MakeTable(crc32.Castagnoli)
+		hash := crc32.New(table)
+		_, err = io.Copy(hash, file)
+		if err != nil {
+			panic(err)
+		}
+		file.Close()
+		hashSum := hash.Sum32()
+		countSub <- FileHashedCount
+		dupeOf, ok := hashMap[hashSum]
+		if ok {
+			dupeSub <- DupeEntry{Path: name, DupeOf: dupeOf}
+			countSub <- DuplicatesFoundCount
+		} else {
+			hashMap[hashSum] = name
+		}
+	}
+	close(dupeSub)
+}
+
+func scanRoutine(dir string, countSub chan countMsg, hashSub chan string) {
+	dirs := []string{dir}
+	for {
+		popped := dirs[0]
+		dirs = dirs[1:]
+		entries, err := os.ReadDir(popped)
+		if err != nil {
+			panic(err)
+		}
+		for _, entry := range entries {
+			countSub <- FileFoundCount
+			entryName := entry.Name()
+			fullPath := path.Join(popped, entryName)
+			switch path.Ext(entryName) {
+			case ".jpg", ".jpeg", ".png", ".webp":
+				hashSub <- fullPath
+				countSub <- ImageFoundCount
+			}
+			if *recurFlag {
+				continue
+			}
+			if entry.IsDir() {
+				dirs = append(dirs, fullPath)
+				countSub <- FolderScannedCount
+			}
+		}
+		if len(dirs) == 0 {
+			close(hashSub)
+			break
+		}
+	}
 }
 
 func dupeRoutineMaster(countSub chan countMsg, dupeSub chan DupeEntry, out chan []DupeSet) {
