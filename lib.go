@@ -50,12 +50,12 @@ type DupeSet struct {
 
 func hashRoutine(hashSub chan string, countSub chan countMsg, dupeSub chan DupeEntry) {
 	hashMap := make(map[uint32]string)
+	table := crc32.MakeTable(crc32.Castagnoli)
 	for name := range hashSub {
 		file, err := os.Open(name)
 		if err != nil {
 			panic(err)
 		}
-		table := crc32.MakeTable(crc32.Castagnoli)
 		hash := crc32.New(table)
 		_, err = io.Copy(hash, file)
 		if err != nil {
