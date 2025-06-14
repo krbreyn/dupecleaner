@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"image"
+	"image/gif"
 	"io"
 	"os"
 	"path"
@@ -89,7 +90,7 @@ func scanRoutine(dir string, countSub chan countMsg, hashSub chan string) {
 			entryName := entry.Name()
 			fullPath := path.Join(popped, entryName)
 			switch path.Ext(entryName) {
-			case ".jpg", ".jpeg", ".png", ".webp":
+			case ".jpg", ".jpeg", ".png", ".webp", ".gif":
 				hashSub <- fullPath
 				countSub <- ImageFoundCount
 			}
@@ -152,7 +153,12 @@ func dupeRoutine(wg *sync.WaitGroup, dupeSub chan DupeEntry, mu *sync.Mutex, dup
 		mu.Unlock()
 
 		if !ok {
-			sixelImg := toSixelImg(dupe.DupeOf, width, height)
+			var sixelImg []byte
+			if path.Ext(entry.Paths[0]) == ".gif" {
+				sixelImg = toSixelImgGif(dupe.DupeOf, width, height)
+			} else {
+				sixelImg = toSixelImg(dupe.DupeOf, width, height)
+			}
 			countSub <- ImageConvertedCount
 
 			mu.Lock()
@@ -182,6 +188,25 @@ func toSixelImg(path string, maxWidth, maxHeight int) []byte {
 		panic(err)
 	}
 	img = resizeImageNearest(img, maxWidth, maxHeight)
+	var buf bytes.Buffer
+	err = sixel.NewEncoder(&buf).Encode(img)
+	if err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
+}
+func toSixelImgGif(path string, maxWidth, maxHeight int) []byte {
+	file, err := os.Open(path)
+	if err != nil {
+		panic(err)
+	}
+
+	g, err := gif.DecodeAll(file)
+	if err != nil {
+		panic(err)
+	}
+	file.Close()
+	img := resizeImageNearest(g.Image[0], maxWidth, maxHeight)
 	var buf bytes.Buffer
 	err = sixel.NewEncoder(&buf).Encode(img)
 	if err != nil {
