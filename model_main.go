@@ -37,18 +37,40 @@ func (m m_model) View() string {
 	curr := m.Curr()
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("%d/%d\n", m.Pos+1, len(m.dupes)))
-	for i, path := range curr.Paths {
-		b.WriteString("\n")
-		if i == m.Curr().Pos {
-			b.WriteString("  ")
-		}
-		b.WriteString(path)
-		if m.IsSelected(path) {
-			b.WriteString(" !")
-		}
+	b.WriteString(m.printPaths())
+	if curr.Pos != len(curr.Paths)-1 && len(curr.Paths) > 5 {
+		b.WriteString("  v more")
+	} else {
+		b.WriteString("  end")
 	}
 	b.WriteString("\n\n" + string(curr.SixelImg))
 	return b.String()
+}
+
+func (m m_model) printPaths() string {
+	curr := m.Curr()
+	var sel []string
+	var damp int
+	if len(curr.Paths) <= 5 {
+		sel = curr.Paths
+	} else if curr.Pos <= 4 {
+		sel = curr.Paths[:5]
+	} else {
+		sel = curr.Paths[curr.Pos-4 : curr.Pos+1]
+		damp = curr.Pos + 1 - 5
+	}
+	var ret string
+	for i := range sel {
+		if i == curr.Pos-damp {
+			ret += "    "
+		}
+		ret += sel[i]
+		if m.IsSelected(sel[i]) {
+			ret += " !"
+		}
+		ret += "\n"
+	}
+	return ret
 }
 
 func (m m_model) Curr() *DupeSet {
